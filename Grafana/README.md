@@ -21,7 +21,7 @@ Usage
 1. Install Linux required libraries
 
 ```console
-sudo dnf install make automake gcc gcc-c++ kernel-devel pixman-devel cairo-devel pango-devel
+sudo dnf install make automake gcc gcc-c++ kernel-devel pixman-devel cairo-devel pango-devel libgfortran
 sudo dnf module install nodejs:12
 ```
 
