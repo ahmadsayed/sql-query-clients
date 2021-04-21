@@ -18,8 +18,14 @@ Usage
 -----------
 
 ### Setup
+1. Install Linux required libraries
 
-1. The plugin can be built using
+```console
+sudo dnf install make automake gcc gcc-c++ kernel-devel pixman-devel cairo-devel pango-devel
+sudo dnf module install nodejs:12
+```
+
+2. The plugin can be built using
 
 ```console
 yarn
