@@ -97,23 +97,21 @@ try:
 except:
     print("No concurrency")
     pass
+import math
+import os
+import random
+import re
 import sys
-from time import sleep
-from bottle import Bottle, HTTPResponse, run, request, response, route, abort
-from bottle import json_dumps
 from calendar import timegm
 from datetime import date, datetime
-import math
-import random
-import os
-import re
-import regex
-import numpy as np
 from enum import Enum
+from time import sleep
 
 import ibm_botocore
-
-from IPython import embed
+import numpy as np
+import regex
+from bottle import Bottle, HTTPResponse, run, request, response
+from bottle import json_dumps
 
 try:
     import cPickle as pickle
@@ -185,7 +183,7 @@ lock = threading.Lock()
 lock_savejob = threading.Lock()
 
 # use this to transform TS-related queryto CloudSQL-compliant form
-singletonSqlClient = SQLClient()
+#singletonSqlClient = SQLClient()
 
 # command-line argument
 cmd_args = get_parser()
@@ -207,7 +205,7 @@ def query_data(key, key_refId, sql_stmt, rerun=False, sqlClient=None):
             df, job_id = res.data, res.job_id
         else:
             with lock:
-                sql_stmt = singletonSqlClient.human_form_to_machine_form(sql_stmt)
+                sql_stmt = grafanaPluginInstances.get_sqlclient(key, thread_safe=True).human_form_to_machine_form(sql_stmt)
             df, job_id = _query_data_with_result(key, sql_stmt, sqlClient)
         if isinstance(df, str):
             df = None
@@ -916,22 +914,29 @@ class CloudSQLDB(dict):
     def should_sql_stmt_be_run(self, key, refId, sql_stmt, sleep_time):
         """return True if it is safe to launch the query, i.e. no further change to it"""
         milliseconds_since_epoch = datetime.now().timestamp() * 1000
+        print(self)
         if "query" not in self[key]:
+            print("query not in self")
             with lock:
                 if "query" not in self[key]:
                     self[key]["query"] = {}
+
         if refId not in self[key]["query"]:
             with lock:
                 if refId not in self[key]["query"]:
                     self[key]["query"][refId] = {}
+
+
         if sql_stmt not in self[key]["query"][refId]:
             with lock:
                 if sql_stmt not in self[key]["query"][refId]:
                     self[key]["query"][refId][sql_stmt] = milliseconds_since_epoch
+
         elif milliseconds_since_epoch > self[key]["query"][refId][sql_stmt]:
             with lock:
                 if milliseconds_since_epoch > self[key]["query"][refId][sql_stmt]:
                     self[key]["query"][refId][sql_stmt] = milliseconds_since_epoch
+
         sleep(sleep_time)  # seconds
         # if milliseconds_since_epoch == self[key]['query'][refId][sql_stmt]:
         #    # no new request to same query
@@ -1423,8 +1428,9 @@ def query():
     #   body = grafanaPluginInstances[key]
     # else:
     #   grafanaPluginInstances[key] = body
+
     logger.debug("========= PRINT REQUEST ============")
-    logger.debug(request)
+    logger.debug(request.body.read().decode("utf-8"))
     logger.debug("========= END PRINT REQUEST ============")
     body = request.body.read().decode("utf-8")
     body = json.loads(body)
@@ -1435,8 +1441,8 @@ def query():
     logger.debug("========= END PRINT body of REQUEST ============")
     # check to see if it's safe to launch
     query = body["targets"][0]
-    # id = query["id"]
-    id_name = "dummy_string"
+    id = query["id"]
+    id_name = id#"dummy_string"
     name = query["name"]
     key = gen_key(id_name, name)
     key_refId = gen_key_refId(body["dashboardId"], body["panelId"], query["refId"])
@@ -1514,7 +1520,7 @@ def process_query(fullquery, body, sqlClient=None, old_key=None):
     logger.debug(sql_stmt)
     logger.debug("========= END PRINT sql_stmt ============")
     # id = fullquery["id"]
-    id_name = "dummy_string"
+    id_name = fullquery["id"] #"dummy_string"
     name = fullquery["name"]
     key = gen_key(id_name, name)
     # TODO : calculate these and check if SQL query uses
@@ -1727,7 +1733,7 @@ def process_query(fullquery, body, sqlClient=None, old_key=None):
             try:
                 sql_stmt = format_sql(sql_stmt)
                 sql_stmt = sql_stmt.replace("\\'", '"')
-                logger.info("Query to be issued:\n", sql_stmt)
+                # logger.info("Query to be issued:\n", sql_stmt)
                 # TODO: convert this to a function with
                 # and decorate the function with @functools.lru_cache
                 # https://docs.python.org/3.4/library/functools.html#functools.lru_cache
